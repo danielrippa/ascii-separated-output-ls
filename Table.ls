@@ -55,7 +55,7 @@
 
     get-fixed-column-widths = (columns, table-width) ->
 
-      available-width = table-width - (columns.length + 1) * 2
+      available-width = table-width - (columns.length + 1) - (columns.length * 2)
       column-width = Math.floor available-width / columns.length
 
       { [ column, column-width ] for column in columns }

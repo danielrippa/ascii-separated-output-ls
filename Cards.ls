@@ -7,10 +7,14 @@
     { string-repeat } = dependency 'value.String'
     { flatten-arrays, repeat-array-item, fold-array-items } = dependency 'value.Array'
     { wrap-text-by-words, wrap-text-by-chars } = dependency 'value.string.Text'
+    { string-as-chars } = dependency 'value.string.CodeUnit'
 
     { value-as-string } = dependency 'prelude.reflection.Value'
 
     border-padding = 4
+
+    # Get proper character count (not code units)
+    char-length = (text) -> (string-as-chars text).length
 
     create-horizontal-border = (width, start-char, end-char) ->
 
@@ -23,10 +27,13 @@
 
     wrap-content-line = (content, total-width) ->
 
-      { vertical } = get-boxdrawing-chars! ; padding = string-repeat ' ', total-width - content.length
+      { vertical } = get-boxdrawing-chars! 
+      content-char-length = char-length content
+      padding-needed = total-width - content-char-length
+      padding = string-repeat ' ', padding-needed
       "#vertical #content#padding #vertical"
 
-    get-max-line-width = (lines) -> fold-array-items lines, 0, (max, line) -> Math.max max, line.length
+    get-max-line-width = (lines) -> fold-array-items lines, 0, (max, line) -> Math.max max, char-length line
 
     needs-auto-wrapping = (object, label-map) ->
 
@@ -35,7 +42,7 @@
       check-field = (label) ->
 
         value = object[ label ] ; field-line = "#{ label-map[ label ] }#value"
-        field-width = field-line.length + border-padding
+        field-width = char-length(field-line) + border-padding
         exceeds-console-width = field-width > console-width
 
         exceeds-console-width
@@ -76,13 +83,29 @@
       member-lines = [ compose-member-lines member-name for member-name in object-member-names label-map ]
       flatten-arrays member-lines
 
-    compose-card-lines = (content-lines) ->
+    compose-card-lines = (content-lines, target-width) ->
 
-      max-width = get-max-line-width content-lines
-      compose-content-line = -> wrap-content-line it, max-width
+      natural-max-width = get-max-line-width content-lines
+      
+      content-padding = 2 ; vertical-borders = 2 
+      
+      total-card-overhead = content-padding + vertical-borders
+      border-overhead = vertical-borders
+      
+      if target-width isnt void
+        content-width = target-width - total-card-overhead
+        border-width = target-width - border-overhead
+      else
+        content-width = natural-max-width
+        border-width = natural-max-width + border-overhead
+
+      compose-content-line = -> wrap-content-line it, content-width
       content-wrapped = [ compose-content-line line for line in content-lines ]
 
-      [ create-top-border max-width + 2 ] ++ content-wrapped ++ [ create-bottom-border max-width + 2 ]
+      top-border = create-top-border border-width
+      bottom-border = create-bottom-border border-width
+
+      [ top-border ] ++ content-wrapped ++ [ bottom-border ]
 
     get-wrapping-width = (wrap-content, max-width, needs-wrapping) ->
 
@@ -102,7 +125,10 @@
 
       wrapping-width = get-wrapping-width wrap-content, max-width, (needs-auto-wrapping object, label-map)
 
-      compose-card-lines get-content-lines object, label-map, wrapping-width, wrap-content-at-words
+      content-lines = get-content-lines object, label-map, wrapping-width, wrap-content-at-words
+
+      target-card-width = if max-width isnt void then max-width else void
+      compose-card-lines content-lines, target-card-width
 
     objects-as-cards = (objects, max-width, wrap-content = no, wrap-content-at-words = no) ->
 
@@ -110,5 +136,15 @@
       [ compose-card object for object in objects ]
 
     {
-      objects-as-cards
+      objects-as-cards,
+      object-as-card,
+      compose-card-lines,
+      get-content-lines,
+      wrap-content-line,
+      get-max-line-width,
+      char-length,
+      wrap-member-value,
+      get-member-lines,
+      get-wrapping-width,
+      needs-auto-wrapping
     }
